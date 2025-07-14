@@ -78,6 +78,34 @@ const NotesDashboard = () => {
     fetchNotes()
   }, [user])
 
+  // Realtime subscription for notes (update UI, no console.log)
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('public:notes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          fetchNotes();
+        }
+      )
+      .subscribe();
+
+    async function fetchNotes() {
+      const { data } = await supabase
+        .from("notes")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+      setNotes(data || []);
+    }
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   // Filter and search notes
   const filteredNotes = useMemo(() => {
     let filtered = notes
